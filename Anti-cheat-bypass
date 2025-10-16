@@ -109,6 +109,22 @@ FlyButton.TextSize = 11
 FlyButton.Font = Enum.Font.GothamBold
 FlyButton.Parent = Frame
 
+-- Mobile Fly Button
+local MobileFlyButton = Instance.new("TextButton")
+MobileFlyButton.Name = "MobileFlyButton"
+MobileFlyButton.Size = UDim2.new(0, 60, 0, 60)
+MobileFlyButton.Position = UDim2.new(1, -80, 0.5, -30)
+MobileFlyButton.BackgroundColor3 = Color3.fromRGB(50, 100, 255)
+MobileFlyButton.Text = "FLY"
+MobileFlyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MobileFlyButton.TextSize = 14
+MobileFlyButton.Font = Enum.Font.GothamBold
+MobileFlyButton.Parent = ScreenGui
+
+local flyBtnCorner = Instance.new("UICorner")
+flyBtnCorner.CornerRadius = UDim.new(1, 0)
+flyBtnCorner.Parent = MobileFlyButton
+
 local NoclipButton = Instance.new("TextButton")
 NoclipButton.Size = UDim2.new(0.85, 0, 0, 28)
 NoclipButton.Position = UDim2.new(0.075, 0, 0.48, 0)
@@ -188,6 +204,9 @@ local function startFly()
     FlyButton.Text = "Fly: ON"
     FlyButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
     
+    MobileFlyButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
+    MobileFlyButton.Text = "FLY ON"
+    
     StatusLabel.Text = "Status: Flying"
     StatusLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
     
@@ -240,6 +259,9 @@ local function stopFly()
     FlyButton.BackgroundColor3 = Color3.fromRGB(50, 100, 255)
     StatusLabel.Text = "Status: Ready"
     StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    
+    MobileFlyButton.BackgroundColor3 = Color3.fromRGB(50, 100, 255)
+    MobileFlyButton.Text = "FLY"
     
     if humanoidRootPart then
         for _, child in pairs(humanoidRootPart:GetChildren()) do
@@ -385,6 +407,10 @@ end
 
 -- Button Events
 FlyButton.MouseButton1Click:Connect(function()
+    if flying then stopFly() else startFly() end
+end)
+
+MobileFlyButton.MouseButton1Click:Connect(function()
     if flying then stopFly() else startFly() end
 end)
 
