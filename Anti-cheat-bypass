@@ -466,20 +466,35 @@ UserInputService.InputEnded:Connect(function(input, processed)
 end)
 
 -- Mobile Support - ปุ่มเดินมือถือ
-UserInputService.TouchMoved:Connect(function(touch, processed)
+local touchStartPos = nil
+local activeTouchId = nil
+
+UserInputService.TouchBegan:Connect(function(touch, processed)
     if UserInputService:GetFocusedTextBox() then return end
     
-    local touchPos = touch.Position
     local screenSize = ScreenGui.Parent.AbsoluteSize
+    local deadzoneLeft = screenSize.X * 0.3
     
-    local deadzoneRadius = 40
-    local centerLeft = Vector2.new(screenSize.X * 0.15, screenSize.Y * 0.85)
+    if touch.Position.X < deadzoneLeft then
+        activeTouchId = touch.UserInputState
+        touchStartPos = touch.Position
+    end
+end)
+
+UserInputService.TouchMoved:Connect(function(touch, processed)
+    if UserInputService:GetFocusedTextBox() then return end
+    if not touchStartPos then return end
     
-    local diff = touchPos - centerLeft
-    if diff.Magnitude > deadzoneRadius then
+    local screenSize = ScreenGui.Parent.AbsoluteSize
+    local deadzoneRadius = 50
+    
+    local diff = touch.Position - touchStartPos
+    local magnitude = diff.Magnitude
+    
+    if magnitude > deadzoneRadius then
         local dir = diff.Unit
-        mobileMovement.x = math.min(1, dir.X)
-        mobileMovement.y = math.min(1, -dir.Y)
+        mobileMovement.x = math.clamp(dir.X, -1, 1)
+        mobileMovement.y = math.clamp(-dir.Y, -1, 1)
     else
         mobileMovement.x = 0
         mobileMovement.y = 0
@@ -487,8 +502,12 @@ UserInputService.TouchMoved:Connect(function(touch, processed)
 end)
 
 UserInputService.TouchEnded:Connect(function(touch, processed)
-    mobileMovement.x = 0
-    mobileMovement.y = 0
+    if activeTouchId == touch.UserInputState then
+        mobileMovement.x = 0
+        mobileMovement.y = 0
+        touchStartPos = nil
+        activeTouchId = nil
+    end
 end)
 
 -- Respawn Handling
