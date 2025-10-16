@@ -41,6 +41,12 @@ local pullbackThreshold = 1.5
 local stuckCounter = 0
 local lastSafePosition = humanoidRootPart.CFrame
 
+-- Mobile detection
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local mobileFrame = nil
+local mobileVisible = false
+local MobileToggle = nil
+
 -- GUI Creation
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "NoclipFlyGUI"
@@ -49,7 +55,7 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = player:WaitForChild("PlayerGui", 5)
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 160, 0, 140)
+Frame.Size = UDim2.new(0, 160, 0, 180)
 Frame.Position = UDim2.new(1, -170, 0, 10)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 Frame.BorderSizePixel = 0
@@ -70,7 +76,7 @@ Title.Parent = Frame
 -- Fly Button
 local FlyButton = Instance.new("TextButton")
 FlyButton.Size = UDim2.new(0.85, 0, 0, 28)
-FlyButton.Position = UDim2.new(0.075, 0, 0.25, 0)
+FlyButton.Position = UDim2.new(0.075, 0, 0.2, 0)
 FlyButton.BackgroundColor3 = Color3.fromRGB(50, 100, 255)
 FlyButton.Text = "Fly: OFF"
 FlyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -81,7 +87,7 @@ FlyButton.Parent = Frame
 -- Noclip Button
 local NoclipButton = Instance.new("TextButton")
 NoclipButton.Size = UDim2.new(0.85, 0, 0, 28)
-NoclipButton.Position = UDim2.new(0.075, 0, 0.48, 0)
+NoclipButton.Position = UDim2.new(0.075, 0, 0.4, 0)
 NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 255)
 NoclipButton.Text = "Noclip: OFF"
 NoclipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -92,7 +98,7 @@ NoclipButton.Parent = Frame
 -- Status Label
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(0.85, 0, 0, 25)
-StatusLabel.Position = UDim2.new(0.075, 0, 0.71, 0)
+StatusLabel.Position = UDim2.new(0.075, 0, 0.82, 0)
 StatusLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 StatusLabel.Text = "Status: Ready"
 StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
@@ -100,17 +106,157 @@ StatusLabel.TextSize = 9
 StatusLabel.Font = Enum.Font.Gotham
 StatusLabel.Parent = Frame
 
+-- Mobile Toggle Button (if mobile)
+if isMobile then
+    MobileToggle = Instance.new("TextButton")
+    MobileToggle.Size = UDim2.new(0.85, 0, 0, 28)
+    MobileToggle.Position = UDim2.new(0.075, 0, 0.6, 0)
+    MobileToggle.BackgroundColor3 = Color3.fromRGB(255, 100, 50)
+    MobileToggle.Text = "Mobile Controls: OFF"
+    MobileToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    MobileToggle.TextSize = 11
+    MobileToggle.Font = Enum.Font.GothamBold
+    MobileToggle.Parent = Frame
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = MobileToggle
+end
+
 -- Styling
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 6)
 corner.Parent = Frame
-for _, btn in pairs({FlyButton, NoclipButton, StatusLabel}) do
+for _, btn in pairs({FlyButton, NoclipButton}) do
     corner:Clone().Parent = btn
 end
+if MobileToggle then
+    corner:Clone().Parent = MobileToggle
+end
+corner:Clone().Parent = StatusLabel
 local stroke = Instance.new("UIStroke")
 stroke.Color = Color3.fromRGB(70, 70, 70)
 stroke.Thickness = 1
 stroke.Parent = Frame
+
+-- Function to create mobile controls
+local function createMobileControls()
+    if mobileFrame then return end
+    
+    mobileFrame = Instance.new("Frame")
+    mobileFrame.Name = "MobileControls"
+    mobileFrame.Size = UDim2.new(0, 170, 0, 200)
+    mobileFrame.Position = UDim2.new(0, 10, 1, -210)
+    mobileFrame.BackgroundTransparency = 1
+    mobileFrame.Visible = false
+    mobileFrame.Parent = ScreenGui
+    
+    local buttonData = {
+        {name = "E", pos = UDim2.new(0, 55, 0, 0), text = "E"},
+        {name = "W", pos = UDim2.new(0, 55, 0, 50), text = "W"},
+        {name = "A", pos = UDim2.new(0, 10, 0, 100), text = "A"},
+        {name = "S", pos = UDim2.new(0, 55, 0, 100), text = "S"},
+        {name = "D", pos = UDim2.new(0, 100, 0, 100), text = "D"},
+        {name = "Q", pos = UDim2.new(0, 55, 0, 150), text = "Q"},
+    }
+    
+    for _, data in ipairs(buttonData) do
+        local btn = Instance.new("TextButton")
+        btn.Name = data.name
+        btn.Position = data.pos
+        btn.Size = UDim2.new(0, 40, 0, 40)
+        btn.Text = data.text
+        btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.TextSize = 20
+        btn.Font = Enum.Font.GothamBold
+        btn.Parent = mobileFrame
+        
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 20)
+        btnCorner.Parent = btn
+        
+        local btnStroke = Instance.new("UIStroke")
+        btnStroke.Color = Color3.fromRGB(100, 100, 100)
+        btnStroke.Thickness = 2
+        btnStroke.Parent = btn
+        
+        btn.MouseButton1Down:Connect(function()
+            if data.name == "W" then
+                control.forward = 1
+            elseif data.name == "A" then
+                control.left = 1
+            elseif data.name == "S" then
+                control.backward = 1
+            elseif data.name == "D" then
+                control.right = 1
+            elseif data.name == "E" then
+                control.up = 1
+            elseif data.name == "Q" then
+                control.down = 1
+            end
+        end)
+        
+        btn.MouseButton1Up:Connect(function()
+            if data.name == "W" then
+                control.forward = 0
+            elseif data.name == "A" then
+                control.left = 0
+            elseif data.name == "S" then
+                control.backward = 0
+            elseif data.name == "D" then
+                control.right = 0
+            elseif data.name == "E" then
+                control.up = 0
+            elseif data.name == "Q" then
+                control.down = 0
+            end
+        end)
+    end
+    
+    -- Close button for mobile controls
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -40, 0, 10)
+    closeBtn.Text = "✕"
+    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.TextSize = 16
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Parent = mobileFrame
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 15)
+    closeCorner.Parent = closeBtn
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        mobileVisible = false
+        if mobileFrame then
+            mobileFrame.Visible = false
+        end
+        if MobileToggle then
+            MobileToggle.Text = "Mobile Controls: OFF"
+            MobileToggle.BackgroundColor3 = Color3.fromRGB(255, 100, 50)
+        end
+    end)
+end
+
+-- Create mobile controls if mobile
+if isMobile then
+    createMobileControls()
+end
+
+-- Mobile Toggle Event
+if MobileToggle then
+    MobileToggle.MouseButton1Click:Connect(function()
+        mobileVisible = not mobileVisible
+        if mobileFrame then
+            mobileFrame.Visible = mobileVisible
+        end
+        MobileToggle.Text = mobileVisible and "Mobile Controls: ON" or "Mobile Controls: OFF"
+        MobileToggle.BackgroundColor3 = mobileVisible and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 100, 50)
+    end)
+end
 
 -- ฟังก์ชันตรวจสอบว่าอยู่ในกำแพงหรือไม่
 local function isInWall()
@@ -465,9 +611,9 @@ UserInputService.InputEnded:Connect(function(input, processed)
     end
 end)
 
--- Mobile Support
+-- Mobile Support (Joystick - disabled when mobile buttons visible)
 UserInputService.TouchMoved:Connect(function(touch, processed)
-    if UserInputService:GetFocusedTextBox() then return end
+    if UserInputService:GetFocusedTextBox() or mobileVisible then return end
     
     local touchPos = touch.Position
     local screenSize = ScreenGui.Parent.AbsoluteSize
