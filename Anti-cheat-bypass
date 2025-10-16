@@ -1,4 +1,73 @@
--- Services
+-- Button Press Handlers
+local buttonStates = {
+    [ButtonW] = "W",
+    [ButtonA] = "A",
+    [ButtonS] = "S",
+    [ButtonD] = "D",
+    [ButtonUP] = "E",
+    [ButtonDOWN] = "Q"
+}
+
+for button, key in pairs(buttonStates) do
+    button.MouseButton1Down:Connect(function()
+        if key == "W" then control.forward = 1
+        elseif key == "A" then control.left = 1
+        elseif key == "S" then control.backward = 1
+        elseif key == "D" then control.right = 1
+        elseif key == "E" then control.up = 1
+        elseif key == "Q" then control.down = 1
+        end
+        button.BackgroundColor3 = Color3.fromRGB(150, 200, 150)
+    end)
+    
+    button.MouseButton1Up:Connect(function()
+        if key == "W" then control.forward = 0
+        elseif key == "A" then control.left = 0
+        elseif key == "S" then control.backward = 0
+        elseif key == "D" then control.right = 0
+        elseif key == "E" then control.up = 0
+        elseif key == "Q" then control.down = 0
+        end
+        if button.Name:match("Button[WASD]") then
+            button.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        elseif button.Name == "ButtonUP" then
+            button.BackgroundColor3 = Color3.fromRGB(100, 150, 100)
+        else
+            button.BackgroundColor3 = Color3.fromRGB(150, 100, 100)
+        end
+    end)
+end
+
+-- Touch Support untuk Buttons
+for button, key in pairs(buttonStates) do
+    button.TouchBegan:Connect(function()
+        if key == "W" then control.forward = 1
+        elseif key == "A" then control.left = 1
+        elseif key == "S" then control.backward = 1
+        elseif key == "D" then control.right = 1
+        elseif key == "E" then control.up = 1
+        elseif key == "Q" then control.down = 1
+        end
+        button.BackgroundColor3 = Color3.fromRGB(150, 200, 150)
+    end)
+    
+    button.TouchEnded:Connect(function()
+        if key == "W" then control.forward = 0
+        elseif key == "A" then control.left = 0
+        elseif key == "S" then control.backward = 0
+        elseif key == "D" then control.right = 0
+        elseif key == "E" then control.up = 0
+        elseif key == "Q" then control.down = 0
+        end
+        if button.Name:match("Button[WASD]") then
+            button.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        elseif button.Name == "ButtonUP" then
+            button.BackgroundColor3 = Color3.fromRGB(100, 150, 100)
+        else
+            button.BackgroundColor3 = Color3.fromRGB(150, 100, 100)
+        end
+    end)
+end-- Services
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -51,34 +120,78 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = player:WaitForChild("PlayerGui", 5)
 
--- ===== VIRTUAL JOYSTICK =====
-local JoystickBG = Instance.new("Frame")
-JoystickBG.Name = "JoystickBG"
-JoystickBG.Size = UDim2.new(0, 120, 0, 120)
-JoystickBG.Position = UDim2.new(0, 20, 1, -140)
-JoystickBG.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-JoystickBG.BackgroundTransparency = 0.6
-JoystickBG.BorderSizePixel = 0
-JoystickBG.Parent = ScreenGui
+-- ===== VIRTUAL JOYSTICK - BUTTON STYLE =====
+local ButtonW = Instance.new("TextButton")
+ButtonW.Name = "ButtonW"
+ButtonW.Size = UDim2.new(0, 50, 0, 50)
+ButtonW.Position = UDim2.new(0, 20, 1, -180)
+ButtonW.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+ButtonW.Text = "▲"
+ButtonW.TextSize = 20
+ButtonW.Parent = ScreenGui
+local wCorner = Instance.new("UICorner")
+wCorner.CornerRadius = UDim.new(0, 5)
+wCorner.Parent = ButtonW
 
-local joyCorner = Instance.new("UICorner")
-joyCorner.CornerRadius = UDim.new(1, 0)
-joyCorner.Parent = JoystickBG
+local ButtonA = Instance.new("TextButton")
+ButtonA.Name = "ButtonA"
+ButtonA.Size = UDim2.new(0, 50, 0, 50)
+ButtonA.Position = UDim2.new(0, 20, 1, -120)
+ButtonA.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+ButtonA.Text = "◄"
+ButtonA.TextSize = 20
+ButtonA.Parent = ScreenGui
+local aCorner = Instance.new("UICorner")
+aCorner.CornerRadius = UDim.new(0, 5)
+aCorner.Parent = ButtonA
 
-local JoystickStick = Instance.new("Frame")
-JoystickStick.Name = "JoystickStick"
-JoystickStick.Size = UDim2.new(0, 50, 0, 50)
-JoystickStick.Position = UDim2.new(0.5, -25, 0.5, -25)
-JoystickStick.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
-JoystickStick.BorderSizePixel = 0
-JoystickStick.Parent = JoystickBG
+local ButtonS = Instance.new("TextButton")
+ButtonS.Name = "ButtonS"
+ButtonS.Size = UDim2.new(0, 50, 0, 50)
+ButtonS.Position = UDim2.new(0, 80, 1, -120)
+ButtonS.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+ButtonS.Text = "▼"
+ButtonS.TextSize = 20
+ButtonS.Parent = ScreenGui
+local sCorner = Instance.new("UICorner")
+sCorner.CornerRadius = UDim.new(0, 5)
+sCorner.Parent = ButtonS
 
-local stickCorner = Instance.new("UICorner")
-stickCorner.CornerRadius = UDim.new(1, 0)
-stickCorner.Parent = JoystickStick
+local ButtonD = Instance.new("TextButton")
+ButtonD.Name = "ButtonD"
+ButtonD.Size = UDim2.new(0, 50, 0, 50)
+ButtonD.Position = UDim2.new(0, 140, 1, -120)
+ButtonD.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+ButtonD.Text = "►"
+ButtonD.TextSize = 20
+ButtonD.Parent = ScreenGui
+local dCorner = Instance.new("UICorner")
+dCorner.CornerRadius = UDim.new(0, 5)
+dCorner.Parent = ButtonD
 
-local joystickCenter = JoystickBG.AbsolutePosition + JoystickBG.AbsoluteSize / 2
-local joystickRadius = 50
+local ButtonUP = Instance.new("TextButton")
+ButtonUP.Name = "ButtonUP"
+ButtonUP.Size = UDim2.new(0, 50, 0, 50)
+ButtonUP.Position = UDim2.new(0, 80, 1, -180)
+ButtonUP.BackgroundColor3 = Color3.fromRGB(100, 150, 100)
+ButtonUP.Text = "UP"
+ButtonUP.TextSize = 10
+ButtonUP.Parent = ScreenGui
+local upCorner = Instance.new("UICorner")
+upCorner.CornerRadius = UDim.new(0, 5)
+upCorner.Parent = ButtonUP
+
+local ButtonDOWN = Instance.new("TextButton")
+ButtonDOWN.Name = "ButtonDOWN"
+ButtonDOWN.Size = UDim2.new(0, 50, 0, 50)
+ButtonDOWN.Position = UDim2.new(0, 140, 1, -180)
+ButtonDOWN.BackgroundColor3 = Color3.fromRGB(150, 100, 100)
+ButtonDOWN.Text = "DN"
+ButtonDOWN.TextSize = 10
+ButtonDOWN.Parent = ScreenGui
+local dnCorner = Instance.new("UICorner")
+dnCorner.CornerRadius = UDim.new(0, 5)
+dnCorner.Parent = ButtonDOWN
 
 local Frame = Instance.new("Frame")
 Frame.Size = UDim2.new(0, 160, 0, 140)
@@ -451,54 +564,12 @@ local touchStartPos = nil
 
 UserInputService.TouchBegan:Connect(function(touch, processed)
     if UserInputService:GetFocusedTextBox() then return end
-    
-    local joystickCenterPos = JoystickBG.AbsolutePosition + JoystickBG.AbsoluteSize / 2
-    local distToJoystick = (touch.Position - joystickCenterPos).Magnitude
-    
-    -- ตรวจสอบว่าแตะปุ่มเดินหรือไม่
-    if distToJoystick < 80 then
-        touchActive[touch.UserInputState] = true
-        touchStartPos = touch.Position
-    end
 end)
 
 UserInputService.TouchMoved:Connect(function(touch, processed)
-    if UserInputService:GetFocusedTextBox() then return end
-    if not touchActive[touch.UserInputState] or not touchStartPos then return end
-    
-    local joystickCenterPos = JoystickBG.AbsolutePosition + JoystickBG.AbsoluteSize / 2
-    local diff = touch.Position - joystickCenterPos
-    local magnitude = diff.Magnitude
-    local maxDistance = 50
-    
-    if magnitude > 5 then
-        local angle = math.atan2(diff.Y, diff.X)
-        local clampedMag = math.min(magnitude, maxDistance)
-        
-        mobileMovement.x = math.cos(angle) * (clampedMag / maxDistance)
-        mobileMovement.y = -math.sin(angle) * (clampedMag / maxDistance)
-        
-        -- Update stick position
-        local stickDist = math.min(magnitude, maxDistance)
-        local stickX = joystickCenterPos.X + math.cos(angle) * stickDist - JoystickBG.AbsolutePosition.X
-        local stickY = joystickCenterPos.Y - math.sin(angle) * stickDist - JoystickBG.AbsolutePosition.Y
-        
-        JoystickStick.Position = UDim2.new(0, stickX - 25, 0, stickY - 25)
-    else
-        mobileMovement.x = 0
-        mobileMovement.y = 0
-        JoystickStick.Position = UDim2.new(0.5, -25, 0.5, -25)
-    end
 end)
 
 UserInputService.TouchEnded:Connect(function(touch, processed)
-    if touchActive[touch.UserInputState] then
-        touchActive[touch.UserInputState] = nil
-        mobileMovement.x = 0
-        mobileMovement.y = 0
-        touchStartPos = nil
-        JoystickStick.Position = UDim2.new(0.5, -25, 0.5, -25)
-    end
 end)
 
 -- Respawn
