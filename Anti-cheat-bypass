@@ -289,16 +289,22 @@ local function startNoclip()
     noclipConnection = RunService.Stepped:Connect(function()
         if not noclipping or not character or not humanoidRootPart then return end
         
-        -- ปิด CanCollide ทั้งหมด
+        -- ปิด CanCollide ทั้งหมด อย่างเด็ดขาด
         for _, part in pairs(character:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
+                pcall(function()
+                    part:SetNetworkOwner(player)
+                end)
             end
         end
         
         if humanoidRootPart then
-            humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
             humanoidRootPart.CanCollide = false
+            humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
+            pcall(function()
+                humanoidRootPart:SetNetworkOwner(player)
+            end)
         end
     end)
     
@@ -374,8 +380,11 @@ local function startNoclip()
             end
             bodyVel.Velocity = moveDir * 20
             
-            -- Nudge อย่างแข็งแรง
-            humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.1)
+            -- Nudge อย่างแข็งแรง (ออกจากกำแพง)
+            for k = 1, 2 do
+                humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.15)
+                task.wait(0.001)
+            end
         else
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
             if bodyVel then
@@ -392,6 +401,14 @@ local function startNoclip()
         
         -- บังคับให้ velocity ยังคงอยู่
         humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
+        humanoidRootPart.CanCollide = false
+        
+        -- ปิด CanCollide ทั้งหมดอีกครั้ง
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
         
         pcall(function()
             humanoidRootPart:SetNetworkOwner(player)
