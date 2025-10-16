@@ -51,6 +51,35 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = player:WaitForChild("PlayerGui", 5)
 
+-- ===== VIRTUAL JOYSTICK =====
+local JoystickBG = Instance.new("Frame")
+JoystickBG.Name = "JoystickBG"
+JoystickBG.Size = UDim2.new(0, 120, 0, 120)
+JoystickBG.Position = UDim2.new(0, 20, 1, -140)
+JoystickBG.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+JoystickBG.BackgroundTransparency = 0.6
+JoystickBG.BorderSizePixel = 0
+JoystickBG.Parent = ScreenGui
+
+local joyCorner = Instance.new("UICorner")
+joyCorner.CornerRadius = UDim.new(1, 0)
+joyCorner.Parent = JoystickBG
+
+local JoystickStick = Instance.new("Frame")
+JoystickStick.Name = "JoystickStick"
+JoystickStick.Size = UDim2.new(0, 50, 0, 50)
+JoystickStick.Position = UDim2.new(0.5, -25, 0.5, -25)
+JoystickStick.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+JoystickStick.BorderSizePixel = 0
+JoystickStick.Parent = JoystickBG
+
+local stickCorner = Instance.new("UICorner")
+stickCorner.CornerRadius = UDim.new(1, 0)
+stickCorner.Parent = JoystickStick
+
+local joystickCenter = JoystickBG.AbsolutePosition + JoystickBG.AbsoluteSize / 2
+local joystickRadius = 50
+
 local Frame = Instance.new("Frame")
 Frame.Size = UDim2.new(0, 160, 0, 140)
 Frame.Position = UDim2.new(1, -170, 0, 10)
@@ -397,11 +426,11 @@ local touchStartPos = nil
 UserInputService.TouchBegan:Connect(function(touch, processed)
     if UserInputService:GetFocusedTextBox() then return end
     
-    local screenSize = ScreenGui.Parent.AbsoluteSize
-    local touchX = touch.Position.X
-    local touchY = touch.Position.Y
+    local joystickCenterPos = JoystickBG.AbsolutePosition + JoystickBG.AbsoluteSize / 2
+    local distToJoystick = (touch.Position - joystickCenterPos).Magnitude
     
-    if touchX < screenSize.X * 0.4 and touchY > screenSize.Y * 0.6 then
+    -- ตรวจสอบว่าแตะปุ่มเดินหรือไม่
+    if distToJoystick < 80 then
         touchActive[touch.UserInputState] = true
         touchStartPos = touch.Position
     end
@@ -411,19 +440,28 @@ UserInputService.TouchMoved:Connect(function(touch, processed)
     if UserInputService:GetFocusedTextBox() then return end
     if not touchActive[touch.UserInputState] or not touchStartPos then return end
     
-    local diff = touch.Position - touchStartPos
+    local joystickCenterPos = JoystickBG.AbsolutePosition + JoystickBG.AbsoluteSize / 2
+    local diff = touch.Position - joystickCenterPos
     local magnitude = diff.Magnitude
-    local maxDistance = 60
+    local maxDistance = 50
     
-    if magnitude > 10 then
+    if magnitude > 5 then
         local angle = math.atan2(diff.Y, diff.X)
         local clampedMag = math.min(magnitude, maxDistance)
         
         mobileMovement.x = math.cos(angle) * (clampedMag / maxDistance)
         mobileMovement.y = -math.sin(angle) * (clampedMag / maxDistance)
+        
+        -- Update stick position
+        local stickDist = math.min(magnitude, maxDistance)
+        local stickX = joystickCenterPos.X + math.cos(angle) * stickDist - JoystickBG.AbsolutePosition.X
+        local stickY = joystickCenterPos.Y - math.sin(angle) * stickDist - JoystickBG.AbsolutePosition.Y
+        
+        JoystickStick.Position = UDim2.new(0, stickX - 25, 0, stickY - 25)
     else
         mobileMovement.x = 0
         mobileMovement.y = 0
+        JoystickStick.Position = UDim2.new(0.5, -25, 0.5, -25)
     end
 end)
 
@@ -433,6 +471,7 @@ UserInputService.TouchEnded:Connect(function(touch, processed)
         mobileMovement.x = 0
         mobileMovement.y = 0
         touchStartPos = nil
+        JoystickStick.Position = UDim2.new(0.5, -25, 0.5, -25)
     end
 end)
 
