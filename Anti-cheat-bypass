@@ -465,7 +465,7 @@ UserInputService.InputEnded:Connect(function(input, processed)
     end
 end)
 
--- Mobile Support
+-- Mobile Support - ปุ่มเดินมือถือ
 UserInputService.TouchMoved:Connect(function(touch, processed)
     if UserInputService:GetFocusedTextBox() then return end
     
