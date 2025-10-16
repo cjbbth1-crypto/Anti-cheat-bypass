@@ -32,14 +32,17 @@ local control = {forward = 0, backward = 0, left = 0, right = 0, up = 0, down = 
 local flyConnection
 local noclipConnection
 local antiPullbackConnection
+local velocityBypassConnection
 
--- Position tracking
+-- Position tracking (ENHANCED)
 local lastPosition = humanoidRootPart.Position
 local positionHistory = {}
-local maxHistorySize = 30
-local pullbackThreshold = 1.5
+local maxHistorySize = 60
+local pullbackThreshold = 0.8
 local stuckCounter = 0
 local lastSafePosition = humanoidRootPart.CFrame
+local lastSafeVelocity = Vector3.new(0, 0, 0)
+local positionSnapshots = {}
 
 -- GUI Creation
 local ScreenGui = Instance.new("ScreenGui")
@@ -131,14 +134,14 @@ local function isInWall()
     return false
 end
 
--- ฟังก์ชันตรวจสอบการดึงกลับ
+-- ฟังก์ชันตรวจสอบการดึงกลับ (ENHANCED - โหดกว่า)
 local function detectPullback()
     if not humanoidRootPart then return false end
     
     local currentPos = humanoidRootPart.Position
     local distance = (currentPos - lastPosition).Magnitude
     
-    -- ตรวจหาการเคลื่อนที่ที่ผิดปกติ
+    -- ตรวจสอบการเคลื่อนที่ที่ผิดปกติ (โหด)
     if distance > pullbackThreshold then
         return true
     end
@@ -146,9 +149,9 @@ local function detectPullback()
     local moveDir = humanoid.MoveDirection + Vector3.new(mobileMovement.x, 0, mobileMovement.y)
     
     -- ถ้ากำลังเคลื่อนที่แต่ไม่มีความเร็ว = ติด
-    if distance < 0.02 and moveDir.Magnitude > 0.5 then
+    if distance < 0.01 and moveDir.Magnitude > 0.3 then
         stuckCounter = stuckCounter + 1
-        if stuckCounter > 2 then
+        if stuckCounter > 1 then
             return true
         end
     else
@@ -181,7 +184,7 @@ local function resetHumanoidState()
     humanoid.PlatformStand = false
 end
 
--- ฟังก์ชัน Fly
+-- ฟังก์ชัน Fly (ENHANCED)
 local function startFly()
     if flying or not humanoidRootPart or humanoid.Health <= 0 then return end
     flying = true
@@ -262,7 +265,7 @@ local function stopFly()
     end
 end
 
--- ฟังก์ชัน Noclip
+-- ฟังก์ชัน Noclip (ENHANCED - โหดกว่า)
 local function startNoclip()
     if noclipping then return end
     noclipping = true
@@ -272,19 +275,21 @@ local function startNoclip()
     StatusLabel.Text = flying and "Status: Fly + Noclip" or "Status: Noclip Active"
     StatusLabel.TextColor3 = flying and Color3.fromRGB(255, 255, 100) or Color3.fromRGB(255, 150, 255)
     
-    print("Noclip ON")
+    print("Noclip ON - Enhanced Mode")
     
     pcall(function()
         humanoidRootPart:SetNetworkOwner(player)
     end)
     
     positionHistory = {}
+    positionSnapshots = {}
     lastPosition = humanoidRootPart.Position
     
-    -- Noclip Loop - ปิด CanCollide ทั้งหมด
+    -- Noclip Loop - ปิด CanCollide ทั้งหมด + ผลัก velocity
     noclipConnection = RunService.Stepped:Connect(function()
         if not noclipping or not character or not humanoidRootPart then return end
         
+        -- ปิด CanCollide ทั้งหมด
         for _, part in pairs(character:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
@@ -293,51 +298,68 @@ local function startNoclip()
         
         if humanoidRootPart then
             humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
+            humanoidRootPart.CanCollide = false
         end
     end)
     
-    -- Anti-Pullback Loop - เก็บตำแหน่งปลอดภัยทุกวินาที
+    -- Anti-Pullback Loop (ENHANCED - โหดมาก)
     antiPullbackConnection = RunService.Heartbeat:Connect(function(deltaTime)
         if not noclipping or not humanoidRootPart then return end
         
         local moveDir = humanoid.MoveDirection + Vector3.new(mobileMovement.x, 0, mobileMovement.y)
         local isMoving = moveDir.Magnitude > 0
         
-        -- บันทึกตำแหน่งปลอดภัย - ทุก frame เมื่อมีการเคลื่อนที่
+        -- บันทึก Safe Position อย่างดี - ทุก frame
         if isMoving then
             lastSafePosition = humanoidRootPart.CFrame
+            lastSafeVelocity = humanoidRootPart.Velocity
             table.insert(positionHistory, humanoidRootPart.CFrame)
+            table.insert(positionSnapshots, {cframe = humanoidRootPart.CFrame, time = tick()})
+            
             if #positionHistory > maxHistorySize then
                 table.remove(positionHistory, 1)
             end
+            if #positionSnapshots > maxHistorySize then
+                table.remove(positionSnapshots, 1)
+            end
         end
         
-        -- ตรวจสอบการดึงกลับอย่างอยวาไพ
+        -- ตรวจสอบการดึงกลับอย่างโหด
         if detectPullback() and isMoving then
-            -- วิธีที่ 1: กระโดดกลับตำแหน่งล่าสุด
-            humanoidRootPart.CFrame = lastSafePosition
+            -- วิธีที่ 1: กระโดดกลับตำแหน่งล่าสุดหลายครั้ง
+            for i = 1, 5 do
+                humanoidRootPart.CFrame = lastSafePosition
+                task.wait(0.001)
+            end
             
-            -- วิธีที่ 2: รีเซ็ต velocity เสียสนิท
+            -- วิธีที่ 2: รีเซ็ต velocity อย่างรุนแรง
             humanoidRootPart.Velocity = Vector3.new(0, 0, 0)
             humanoidRootPart.RotVelocity = Vector3.new(0, 0, 0)
             humanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
             humanoidRootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
             
-            -- วิธีที่ 3: บังคับอัพเดท network
-            for _ = 1, 3 do
+            -- วิธีที่ 3: บังคับอัพเดท network หลายครั้ง
+            for _ = 1, 5 do
                 pcall(function()
                     humanoidRootPart:SetNetworkOwner(player)
                 end)
+                task.wait(0.001)
             end
             
-            -- วิธีที่ 4: ผลักตัวออกจากจุดปัญหา
+            -- วิธีที่ 4: ผลักตัวออกจากจุดปัญหาหลายครั้ง
             if moveDir.Magnitude > 0 then
                 moveDir = moveDir.Unit
-                humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.5)
+                for j = 1, 3 do
+                    humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.3)
+                    task.wait(0.001)
+                end
             end
+            
+            -- วิธีที่ 5: ยืนยันว่าไม่ใช่บน Ground State
+            humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
         end
         
-        -- ผลักตัวไปข้างหน้า (ความเร็วปกติ 16 แต่ลดแรง)
+        -- ผลักตัวไปข้างหน้า (โหด)
         if isMoving and not flying then
             moveDir = moveDir.Unit
             
@@ -345,14 +367,15 @@ local function startNoclip()
             if not bodyVel then
                 bodyVel = Instance.new("BodyVelocity")
                 bodyVel.Name = "NoclipPush"
-                bodyVel.MaxForce = Vector3.new(50000, 50000, 50000)
-                bodyVel.P = 3000
+                bodyVel.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                bodyVel.P = 5000
+                bodyVel.D = 100
                 bodyVel.Parent = humanoidRootPart
             end
-            bodyVel.Velocity = moveDir * 16
+            bodyVel.Velocity = moveDir * 20
             
-            -- ลด nudge เพื่อให้นิ่มนวล
-            humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.05)
+            -- Nudge อย่างแข็งแรง
+            humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.1)
         else
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
             if bodyVel then
@@ -361,6 +384,18 @@ local function startNoclip()
         end
         
         humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
+    end)
+    
+    -- Velocity Bypass Loop (ป้องกันการ reset velocity)
+    velocityBypassConnection = RunService.RenderStepped:Connect(function()
+        if not noclipping or not humanoidRootPart then return end
+        
+        -- บังคับให้ velocity ยังคงอยู่
+        humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
+        
+        pcall(function()
+            humanoidRootPart:SetNetworkOwner(player)
+        end)
     end)
 end
 
@@ -383,6 +418,12 @@ local function stopNoclip()
         antiPullbackConnection = nil
     end
     
+    if velocityBypassConnection then
+        velocityBypassConnection:Disconnect()
+        velocityBypassConnection = nil
+    end
+    
+    -- เปิด CanCollide กลับให้ส่วนตัวละครสำคัญเท่านั้น
     for _, part in pairs(character:GetDescendants()) do
         if part:IsA("BasePart") and part:IsDescendantOf(character) then
             if part.Name == "Head" or part.Name == "Torso" or part.Name == "HumanoidRootPart" 
@@ -427,6 +468,8 @@ local function stopNoclip()
     if humanoid then
         humanoid.WalkSpeed = 16
     end
+    
+    print("Noclip OFF - กลับมาเดินปกติแล้ว")
 end
 
 -- Button Events
@@ -465,7 +508,7 @@ UserInputService.InputEnded:Connect(function(input, processed)
     end
 end)
 
--- Mobile Support
+-- Mobile Support (ENHANCED)
 UserInputService.TouchMoved:Connect(function(touch, processed)
     if UserInputService:GetFocusedTextBox() then return end
     
@@ -497,6 +540,7 @@ player.CharacterAdded:Connect(function(newChar)
     humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
     humanoid = character:WaitForChild("Humanoid", 5)
     positionHistory = {}
+    positionSnapshots = {}
     lastPosition = humanoidRootPart.Position
     
     local wasFlying = flying
@@ -517,4 +561,7 @@ pcall(function()
     humanoidRootPart:SetNetworkOwner(player)
 end)
 
-print("Fly & Noclip System loaded!")
+print("✓ Fly & Noclip System ENHANCED loaded!")
+print("✓ Anti-Pullback: ACTIVE (โหดมาก)")
+print("✓ Mobile Support: ACTIVE")
+print("✓ Status: READY")
