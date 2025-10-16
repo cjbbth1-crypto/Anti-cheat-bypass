@@ -120,78 +120,7 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = player:WaitForChild("PlayerGui", 5)
 
--- ===== VIRTUAL JOYSTICK - BUTTON STYLE =====
-local ButtonW = Instance.new("TextButton")
-ButtonW.Name = "ButtonW"
-ButtonW.Size = UDim2.new(0, 50, 0, 50)
-ButtonW.Position = UDim2.new(0, 20, 1, -180)
-ButtonW.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-ButtonW.Text = "▲"
-ButtonW.TextSize = 20
-ButtonW.Parent = ScreenGui
-local wCorner = Instance.new("UICorner")
-wCorner.CornerRadius = UDim.new(0, 5)
-wCorner.Parent = ButtonW
 
-local ButtonA = Instance.new("TextButton")
-ButtonA.Name = "ButtonA"
-ButtonA.Size = UDim2.new(0, 50, 0, 50)
-ButtonA.Position = UDim2.new(0, 20, 1, -120)
-ButtonA.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-ButtonA.Text = "◄"
-ButtonA.TextSize = 20
-ButtonA.Parent = ScreenGui
-local aCorner = Instance.new("UICorner")
-aCorner.CornerRadius = UDim.new(0, 5)
-aCorner.Parent = ButtonA
-
-local ButtonS = Instance.new("TextButton")
-ButtonS.Name = "ButtonS"
-ButtonS.Size = UDim2.new(0, 50, 0, 50)
-ButtonS.Position = UDim2.new(0, 80, 1, -120)
-ButtonS.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-ButtonS.Text = "▼"
-ButtonS.TextSize = 20
-ButtonS.Parent = ScreenGui
-local sCorner = Instance.new("UICorner")
-sCorner.CornerRadius = UDim.new(0, 5)
-sCorner.Parent = ButtonS
-
-local ButtonD = Instance.new("TextButton")
-ButtonD.Name = "ButtonD"
-ButtonD.Size = UDim2.new(0, 50, 0, 50)
-ButtonD.Position = UDim2.new(0, 140, 1, -120)
-ButtonD.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-ButtonD.Text = "►"
-ButtonD.TextSize = 20
-ButtonD.Parent = ScreenGui
-local dCorner = Instance.new("UICorner")
-dCorner.CornerRadius = UDim.new(0, 5)
-dCorner.Parent = ButtonD
-
-local ButtonUP = Instance.new("TextButton")
-ButtonUP.Name = "ButtonUP"
-ButtonUP.Size = UDim2.new(0, 50, 0, 50)
-ButtonUP.Position = UDim2.new(0, 80, 1, -180)
-ButtonUP.BackgroundColor3 = Color3.fromRGB(100, 150, 100)
-ButtonUP.Text = "UP"
-ButtonUP.TextSize = 10
-ButtonUP.Parent = ScreenGui
-local upCorner = Instance.new("UICorner")
-upCorner.CornerRadius = UDim.new(0, 5)
-upCorner.Parent = ButtonUP
-
-local ButtonDOWN = Instance.new("TextButton")
-ButtonDOWN.Name = "ButtonDOWN"
-ButtonDOWN.Size = UDim2.new(0, 50, 0, 50)
-ButtonDOWN.Position = UDim2.new(0, 140, 1, -180)
-ButtonDOWN.BackgroundColor3 = Color3.fromRGB(150, 100, 100)
-ButtonDOWN.Text = "DN"
-ButtonDOWN.TextSize = 10
-ButtonDOWN.Parent = ScreenGui
-local dnCorner = Instance.new("UICorner")
-dnCorner.CornerRadius = UDim.new(0, 5)
-dnCorner.Parent = ButtonDOWN
 
 local Frame = Instance.new("Frame")
 Frame.Size = UDim2.new(0, 160, 0, 140)
