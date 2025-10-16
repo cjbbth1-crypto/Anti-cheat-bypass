@@ -395,13 +395,56 @@ local function startNoclip()
                 end
                 bodyVel.Velocity = moveDir * noclipSpeed
                 humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.1)
+                
+                -- Re-enable collision ออกจากกำแพง
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") and part:IsDescendantOf(character) then
+                        part.CanCollide = false
+                    end
+                end
             else
-                -- ออกจากกำแพงแล้ว - ให้ความเร็วปกติ
+                -- ออกจากกำแพงแล้ว - Reset ทุกอย่าง
                 if bodyVel then
                     bodyVel:Destroy()
                 end
-                -- ตั้งค่า walk speed ปกติ
+                
+                -- Re-enable Collision ปกติ
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") and part:IsDescendantOf(character) then
+                        if part.Name == "Head" or part.Name == "Torso" or part.Name == "HumanoidRootPart" 
+                            or part.Name:match("Arm") or part.Name:match("Leg") 
+                            or part.Parent.Name == "UpperTorso" or part.Parent.Name == "LowerTorso" then
+                            part.CanCollide = true
+                        end
+                    end
+                end
+                
+                -- Reset Humanoid State
+                humanoid.PlatformStand = false
+                humanoid.Sit = false
                 humanoid.WalkSpeed = walkSpeed
+                humanoid.JumpPower = jumpPower
+                
+                -- เพิ่ม Jump เบาๆให้กลับเข้าระบบปกติ
+                humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                
+                -- ปิด noclip อัตโนมัติเพื่อให้กลับเข้าระบบปกติ
+                noclipping = false
+                NoclipButton.Text = "Noclip: OFF"
+                NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 255)
+                StatusLabel.Text = flying and "Status: Flying" or "Status: Ready"
+                StatusLabel.TextColor3 = flying and Color3.fromRGB(100, 200, 255) or Color3.fromRGB(100, 255, 100)
+                
+                if antiPullbackConnection then
+                    antiPullbackConnection:Disconnect()
+                    antiPullbackConnection = nil
+                end
+                if noclipConnection then
+                    noclipConnection:Disconnect()
+                    noclipConnection = nil
+                end
+                
+                print("Noclip auto-stopped - exited wall")
             end
         else
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
