@@ -55,6 +55,10 @@ local stuckCounter = 0
 local lastSafePosition = humanoidRootPart.CFrame
 local pullbackDetectFrame = 0
 
+-- Wall Exit Tracking
+local wasInWall = false
+local wallCheckCounter = 0
+
 -- ============================================
 -- GUI SETUP
 -- ============================================
@@ -343,6 +347,65 @@ local function startNoclip()
         
         local moveDir = humanoid.MoveDirection
         local isMoving = moveDir.Magnitude > 0.1
+        local inWall = isInWall()
+        
+        -- ตรวจจับการออกจากกำแพง
+        if wasInWall and not inWall then
+            wallCheckCounter = wallCheckCounter + 1
+            -- ออกจากกำแพงสำเร็จ 10 frame
+            if wallCheckCounter >= 10 then
+                print("Successfully exited wall - resetting noclip")
+                
+                -- Re-enable all collision
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") and part:IsDescendantOf(character) then
+                        part.CanCollide = true
+                    end
+                end
+                
+                -- Destroy BodyVelocity
+                local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
+                if bodyVel then
+                    bodyVel:Destroy()
+                end
+                
+                -- Reset Humanoid
+                humanoid.PlatformStand = false
+                humanoid.Sit = false
+                humanoid.WalkSpeed = walkSpeed
+                humanoid.JumpPower = jumpPower
+                humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                
+                humanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+                humanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                
+                -- ปิด Noclip
+                noclipping = false
+                NoclipButton.Text = "Noclip: OFF"
+                NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 255)
+                StatusLabel.Text = flying and "Status: Flying" or "Status: Ready"
+                StatusLabel.TextColor3 = flying and Color3.fromRGB(100, 200, 255) or Color3.fromRGB(100, 255, 100)
+                
+                -- ปิด connections
+                if antiPullbackConnection then
+                    antiPullbackConnection:Disconnect()
+                    antiPullbackConnection = nil
+                end
+                if noclipConnection then
+                    noclipConnection:Disconnect()
+                    noclipConnection = nil
+                end
+                
+                wasInWall = false
+                wallCheckCounter = 0
+                return
+            end
+        elseif inWall then
+            wasInWall = true
+            wallCheckCounter = 0
+        else
+            wallCheckCounter = 0
+        end
         
         if isMoving then
             lastSafePosition = humanoidRootPart.CFrame
@@ -379,9 +442,6 @@ local function startNoclip()
         if isMoving and not flying then
             moveDir = moveDir.Unit
             
-            -- ตรวจสอบว่าอยู่ในกำแพงหรือไม่
-            local inWall = isInWall()
-            
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
             if inWall then
                 -- ยังอยู่ในกำแพง - ให้ความเร็วเร็ว
@@ -396,62 +456,24 @@ local function startNoclip()
                 bodyVel.Velocity = moveDir * noclipSpeed
                 humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.1)
                 
-                -- Re-enable collision ออกจากกำแพง
+                -- Keep collision off
                 for _, part in pairs(character:GetDescendants()) do
                     if part:IsA("BasePart") and part:IsDescendantOf(character) then
                         part.CanCollide = false
                     end
                 end
             else
-                -- ออกจากกำแพงแล้ว - Reset ทุกอย่าง
+                -- ออกจากกำแพง - เดินปกติ
                 if bodyVel then
                     bodyVel:Destroy()
                 end
-                
-                -- Re-enable Collision ปกติ
-                for _, part in pairs(character:GetDescendants()) do
-                    if part:IsA("BasePart") and part:IsDescendantOf(character) then
-                        if part.Name == "Head" or part.Name == "Torso" or part.Name == "HumanoidRootPart" 
-                            or part.Name:match("Arm") or part.Name:match("Leg") 
-                            or part.Parent.Name == "UpperTorso" or part.Parent.Name == "LowerTorso" then
-                            part.CanCollide = true
-                        end
-                    end
-                end
-                
-                -- Reset Humanoid State
-                humanoid.PlatformStand = false
-                humanoid.Sit = false
                 humanoid.WalkSpeed = walkSpeed
-                humanoid.JumpPower = jumpPower
-                
-                -- เพิ่ม Jump เบาๆให้กลับเข้าระบบปกติ
-                humanoid:ChangeState(Enum.HumanoidStateType.Running)
-                
-                -- ปิด noclip อัตโนมัติเพื่อให้กลับเข้าระบบปกติ
-                noclipping = false
-                NoclipButton.Text = "Noclip: OFF"
-                NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 255)
-                StatusLabel.Text = flying and "Status: Flying" or "Status: Ready"
-                StatusLabel.TextColor3 = flying and Color3.fromRGB(100, 200, 255) or Color3.fromRGB(100, 255, 100)
-                
-                if antiPullbackConnection then
-                    antiPullbackConnection:Disconnect()
-                    antiPullbackConnection = nil
-                end
-                if noclipConnection then
-                    noclipConnection:Disconnect()
-                    noclipConnection = nil
-                end
-                
-                print("Noclip auto-stopped - exited wall")
             end
         else
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
             if bodyVel then
                 bodyVel:Destroy()
             end
-            humanoid.WalkSpeed = walkSpeed
         end
         
         humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
