@@ -5,14 +5,25 @@ local RunService = game:GetService("RunService")
 
 -- Local Player
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
-local humanoid = character:WaitForChild("Humanoid", 5)
-
-if not humanoidRootPart or not humanoid then
-    warn("Character not found.")
+if not player then
+    warn("Player not found")
     return
 end
+
+local character = player.Character
+if not character then
+    character = player.CharacterAdded:Wait()
+end
+
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+
+if not humanoidRootPart or not humanoid then
+    warn("Character parts not found.")
+    return
+end
+
+print("Script started successfully")
 
 -- Variables
 local flying = false
@@ -27,10 +38,11 @@ local antiPullbackConnection
 
 local lastPosition = humanoidRootPart.Position
 local positionHistory = {}
-local maxHistorySize = 30
-local pullbackThreshold = 1.5
+local maxHistorySize = 50
+local pullbackThreshold = 0.8
 local stuckCounter = 0
 local lastSafePosition = humanoidRootPart.CFrame
+local pullbackDetectionSpeed = 2
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
@@ -101,20 +113,27 @@ local function detectPullback()
     
     local currentPos = humanoidRootPart.Position
     local distance = (currentPos - lastPosition).Magnitude
+    local moveDir = humanoid.MoveDirection + Vector3.new(mobileMovement.x, 0, mobileMovement.y)
+    local isMoving = moveDir.Magnitude > 0.1
     
-    if distance > pullbackThreshold then
+    -- ตรวจหาการดึงกลับรุนแรง
+    if distance > pullbackThreshold and isMoving then
         return true
     end
     
-    local moveDir = humanoid.MoveDirection + Vector3.new(mobileMovement.x, 0, mobileMovement.y)
-    
-    if distance < 0.02 and moveDir.Magnitude > 0.5 then
+    -- ตรวจหาการติดค้าง (เคลื่อนที่แต่ไม่ขยับ)
+    if isMoving and distance < 0.01 then
         stuckCounter = stuckCounter + 1
-        if stuckCounter > 2 then
+        if stuckCounter > 1 then
             return true
         end
     else
         stuckCounter = 0
+    end
+    
+    -- ตรวจหาการดึงกลับแบบช้าๆ
+    if distance > 3 and not isMoving then
+        return true
     end
     
     lastPosition = currentPos
@@ -238,28 +257,56 @@ local function startNoclip()
         if not noclipping or not humanoidRootPart then return end
         
         local moveDir = humanoid.MoveDirection + Vector3.new(mobileMovement.x, 0, mobileMovement.y)
-        local isMoving = moveDir.Magnitude > 0
+        local isMoving = moveDir.Magnitude > 0.1
         
         if isMoving then
             lastSafePosition = humanoidRootPart.CFrame
+            table.insert(positionHistory, humanoidRootPart.CFrame)
+            if #positionHistory > maxHistorySize then
+                table.remove(positionHistory, 1)
+            end
         end
         
-        if detectPullback() and isMoving then
-            humanoidRootPart.CFrame = lastSafePosition
+        -- Anti Pullback - โหดๆ
+        if detectPullback() then
+            if isMoving then
+                humanoidRootPart.CFrame = lastSafePosition
+            end
+            
+            -- รีเซ็ต velocity ทั้งหมด
             humanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+            humanoidRootPart.RotVelocity = Vector3.new(0, 0, 0)
+            humanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            humanoidRootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            
+            -- บังคับอัพเดท Network
+            for _ = 1, 5 do
+                pcall(function()
+                    humanoidRootPart:SetNetworkOwner(player)
+                end)
+            end
+            
+            -- ผลักตัวออกจากจุดปัญหา
+            if moveDir.Magnitude > 0 then
+                moveDir = moveDir.Unit
+                humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 1)
+            end
         end
         
+        -- ผลักตัวไปข้างหน้า
         if isMoving and not flying then
             moveDir = moveDir.Unit
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
             if not bodyVel then
                 bodyVel = Instance.new("BodyVelocity")
                 bodyVel.Name = "NoclipPush"
-                bodyVel.MaxForce = Vector3.new(50000, 50000, 50000)
-                bodyVel.P = 3000
+                bodyVel.MaxForce = Vector3.new(100000, 100000, 100000)
+                bodyVel.P = 5000
+                bodyVel.D = 500
                 bodyVel.Parent = humanoidRootPart
             end
-            bodyVel.Velocity = moveDir * 16
+            bodyVel.Velocity = moveDir * 20
+            humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.1)
         else
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
             if bodyVel then
