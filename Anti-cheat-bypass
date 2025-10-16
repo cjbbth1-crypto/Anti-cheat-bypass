@@ -375,26 +375,40 @@ local function startNoclip()
             end
         end
         
-        -- Movement Push
+        -- Movement Push - ตรวจสอบว่ายังในกำแพงหรือไม่
         if isMoving and not flying then
             moveDir = moveDir.Unit
             
+            -- ตรวจสอบว่าอยู่ในกำแพงหรือไม่
+            local inWall = isInWall()
+            
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
-            if not bodyVel then
-                bodyVel = Instance.new("BodyVelocity")
-                bodyVel.Name = "NoclipPush"
-                bodyVel.MaxForce = Vector3.new(100000, 100000, 100000)
-                bodyVel.P = 5000
-                bodyVel.D = 500
-                bodyVel.Parent = humanoidRootPart
+            if inWall then
+                -- ยังอยู่ในกำแพง - ให้ความเร็วเร็ว
+                if not bodyVel then
+                    bodyVel = Instance.new("BodyVelocity")
+                    bodyVel.Name = "NoclipPush"
+                    bodyVel.MaxForce = Vector3.new(100000, 100000, 100000)
+                    bodyVel.P = 5000
+                    bodyVel.D = 500
+                    bodyVel.Parent = humanoidRootPart
+                end
+                bodyVel.Velocity = moveDir * noclipSpeed
+                humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.1)
+            else
+                -- ออกจากกำแพงแล้ว - ให้ความเร็วปกติ
+                if bodyVel then
+                    bodyVel:Destroy()
+                end
+                -- ตั้งค่า walk speed ปกติ
+                humanoid.WalkSpeed = walkSpeed
             end
-            bodyVel.Velocity = moveDir * noclipSpeed
-            humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.1)
         else
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
             if bodyVel then
                 bodyVel:Destroy()
             end
+            humanoid.WalkSpeed = walkSpeed
         end
         
         humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
