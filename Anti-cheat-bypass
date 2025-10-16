@@ -32,14 +32,21 @@ local control = {forward = 0, backward = 0, left = 0, right = 0, up = 0, down = 
 local flyConnection
 local noclipConnection
 local antiPullbackConnection
+local velocityBypassConnection
+local wallDetectConnection
 
--- Position tracking
+-- Position tracking (ENHANCED)
 local lastPosition = humanoidRootPart.Position
 local positionHistory = {}
-local maxHistorySize = 30
-local pullbackThreshold = 1.5
+local maxHistorySize = 60
+local pullbackThreshold = 0.5
 local stuckCounter = 0
 local lastSafePosition = humanoidRootPart.CFrame
+local lastSafeVelocity = Vector3.new(0, 0, 0)
+
+-- Wall Detection (ใหม่)
+local inWallCounter = 0
+local lastOutOfWallTime = tick()
 
 -- GUI Creation
 local ScreenGui = Instance.new("ScreenGui")
@@ -49,7 +56,7 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = player:WaitForChild("PlayerGui", 5)
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 160, 0, 140)
+Frame.Size = UDim2.new(0, 160, 0, 170)
 Frame.Position = UDim2.new(1, -170, 0, 10)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 Frame.BorderSizePixel = 0
@@ -70,7 +77,7 @@ Title.Parent = Frame
 -- Fly Button
 local FlyButton = Instance.new("TextButton")
 FlyButton.Size = UDim2.new(0.85, 0, 0, 28)
-FlyButton.Position = UDim2.new(0.075, 0, 0.25, 0)
+FlyButton.Position = UDim2.new(0.075, 0, 0.2, 0)
 FlyButton.BackgroundColor3 = Color3.fromRGB(50, 100, 255)
 FlyButton.Text = "Fly: OFF"
 FlyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -81,7 +88,7 @@ FlyButton.Parent = Frame
 -- Noclip Button
 local NoclipButton = Instance.new("TextButton")
 NoclipButton.Size = UDim2.new(0.85, 0, 0, 28)
-NoclipButton.Position = UDim2.new(0.075, 0, 0.48, 0)
+NoclipButton.Position = UDim2.new(0.075, 0, 0.4, 0)
 NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 255)
 NoclipButton.Text = "Noclip: OFF"
 NoclipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -92,7 +99,7 @@ NoclipButton.Parent = Frame
 -- Status Label
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(0.85, 0, 0, 25)
-StatusLabel.Position = UDim2.new(0.075, 0, 0.71, 0)
+StatusLabel.Position = UDim2.new(0.075, 0, 0.6, 0)
 StatusLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 StatusLabel.Text = "Status: Ready"
 StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
@@ -100,11 +107,22 @@ StatusLabel.TextSize = 9
 StatusLabel.Font = Enum.Font.Gotham
 StatusLabel.Parent = Frame
 
+-- Wall Status Label
+local WallStatusLabel = Instance.new("TextLabel")
+WallStatusLabel.Size = UDim2.new(0.85, 0, 0, 25)
+WallStatusLabel.Position = UDim2.new(0.075, 0, 0.8, 0)
+WallStatusLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+WallStatusLabel.Text = "Wall: OUT"
+WallStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+WallStatusLabel.TextSize = 9
+WallStatusLabel.Font = Enum.Font.Gotham
+WallStatusLabel.Parent = Frame
+
 -- Styling
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 6)
 corner.Parent = Frame
-for _, btn in pairs({FlyButton, NoclipButton, StatusLabel}) do
+for _, btn in pairs({FlyButton, NoclipButton, StatusLabel, WallStatusLabel}) do
     corner:Clone().Parent = btn
 end
 local stroke = Instance.new("UIStroke")
@@ -112,13 +130,13 @@ stroke.Color = Color3.fromRGB(70, 70, 70)
 stroke.Thickness = 1
 stroke.Parent = Frame
 
--- ฟังก์ชันตรวจสอบว่าอยู่ในกำแพงหรือไม่
-local function isInWall()
+-- ฟังก์ชันตรวจสอบอยู่ในกำแพงหรือไม่
+local function checkIfInWall()
     if not humanoidRootPart then return false end
     
     local region = Region3.new(
-        humanoidRootPart.Position - Vector3.new(3.5, 3.5, 3.5),
-        humanoidRootPart.Position + Vector3.new(3.5, 3.5, 3.5)
+        humanoidRootPart.Position - Vector3.new(4, 4, 4),
+        humanoidRootPart.Position + Vector3.new(4, 4, 4)
     )
     region = region:ExpandToGrid(4)
     
@@ -131,14 +149,14 @@ local function isInWall()
     return false
 end
 
--- ฟังก์ชันตรวจสอบการดึงกลับ
+-- ฟังก์ชันตรวจสอบการดึงกลับ (ENHANCED - โหดกว่า)
 local function detectPullback()
     if not humanoidRootPart then return false end
     
     local currentPos = humanoidRootPart.Position
     local distance = (currentPos - lastPosition).Magnitude
     
-    -- ตรวจหาการเคลื่อนที่ที่ผิดปกติ
+    -- ตรวจสอบการเคลื่อนที่ที่ผิดปกติ (โหด)
     if distance > pullbackThreshold then
         return true
     end
@@ -146,9 +164,9 @@ local function detectPullback()
     local moveDir = humanoid.MoveDirection + Vector3.new(mobileMovement.x, 0, mobileMovement.y)
     
     -- ถ้ากำลังเคลื่อนที่แต่ไม่มีความเร็ว = ติด
-    if distance < 0.02 and moveDir.Magnitude > 0.5 then
+    if distance < 0.01 and moveDir.Magnitude > 0.3 then
         stuckCounter = stuckCounter + 1
-        if stuckCounter > 2 then
+        if stuckCounter > 1 then
             return true
         end
     else
@@ -181,7 +199,7 @@ local function resetHumanoidState()
     humanoid.PlatformStand = false
 end
 
--- ฟังก์ชัน Fly
+-- ฟังก์ชัน Fly (ENHANCED)
 local function startFly()
     if flying or not humanoidRootPart or humanoid.Health <= 0 then return end
     flying = true
@@ -262,7 +280,7 @@ local function stopFly()
     end
 end
 
--- ฟังก์ชัน Noclip
+-- ฟังก์ชัน Noclip (ENHANCED - ตรวจจับออกจากกำแพง)
 local function startNoclip()
     if noclipping then return end
     noclipping = true
@@ -272,16 +290,27 @@ local function startNoclip()
     StatusLabel.Text = flying and "Status: Fly + Noclip" or "Status: Noclip Active"
     StatusLabel.TextColor3 = flying and Color3.fromRGB(255, 255, 100) or Color3.fromRGB(255, 150, 255)
     
-    print("Noclip ON")
+    print("Noclip ON - Wall Detection Active")
     
     pcall(function()
         humanoidRootPart:SetNetworkOwner(player)
     end)
     
+    -- ปิด CanCollide ทั้งหมดก่อน
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+    
+    humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+    
     positionHistory = {}
     lastPosition = humanoidRootPart.Position
+    inWallCounter = 0
+    lastOutOfWallTime = tick()
     
-    -- Noclip Loop - ปิด CanCollide ทั้งหมด
+    -- Noclip Loop - ปิด CanCollide
     noclipConnection = RunService.Stepped:Connect(function()
         if not noclipping or not character or not humanoidRootPart then return end
         
@@ -292,18 +321,43 @@ local function startNoclip()
         end
         
         if humanoidRootPart then
+            humanoidRootPart.CanCollide = false
             humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
+            
+            if humanoid and humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then
+                humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+            end
         end
     end)
     
-    -- Anti-Pullback Loop - เก็บตำแหน่งปลอดภัยทุกวินาที
+    -- Wall Detection Loop (ตรวจจับออกจากกำแพง)
+    wallDetectConnection = RunService.Heartbeat:Connect(function()
+        if not noclipping or not humanoidRootPart then return end
+        
+        local isInWall = checkIfInWall()
+        
+        if isInWall then
+            inWallCounter = 0
+            WallStatusLabel.Text = "Wall: IN ⚠️"
+            WallStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        else
+            inWallCounter = inWallCounter + 1
+            lastOutOfWallTime = tick()
+            
+            if inWallCounter > 5 then
+                WallStatusLabel.Text = "Wall: OUT ✓"
+                WallStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+            end
+        end
+    end)
+    
+    -- Anti-Pullback Loop (โหดมาก)
     antiPullbackConnection = RunService.Heartbeat:Connect(function(deltaTime)
         if not noclipping or not humanoidRootPart then return end
         
         local moveDir = humanoid.MoveDirection + Vector3.new(mobileMovement.x, 0, mobileMovement.y)
         local isMoving = moveDir.Magnitude > 0
         
-        -- บันทึกตำแหน่งปลอดภัย - ทุก frame เมื่อมีการเคลื่อนที่
         if isMoving then
             lastSafePosition = humanoidRootPart.CFrame
             table.insert(positionHistory, humanoidRootPart.CFrame)
@@ -312,32 +366,37 @@ local function startNoclip()
             end
         end
         
-        -- ตรวจสอบการดึงกลับอย่างอยวาไพ
+        -- ตรวจสอบการดึง
         if detectPullback() and isMoving then
-            -- วิธีที่ 1: กระโดดกลับตำแหน่งล่าสุด
-            humanoidRootPart.CFrame = lastSafePosition
+            for i = 1, 5 do
+                humanoidRootPart.CFrame = lastSafePosition
+                task.wait(0.0005)
+            end
             
-            -- วิธีที่ 2: รีเซ็ต velocity เสียสนิท
             humanoidRootPart.Velocity = Vector3.new(0, 0, 0)
             humanoidRootPart.RotVelocity = Vector3.new(0, 0, 0)
             humanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
             humanoidRootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
             
-            -- วิธีที่ 3: บังคับอัพเดท network
-            for _ = 1, 3 do
+            for _ = 1, 5 do
                 pcall(function()
                     humanoidRootPart:SetNetworkOwner(player)
                 end)
+                task.wait(0.0005)
             end
             
-            -- วิธีที่ 4: ผลักตัวออกจากจุดปัญหา
             if moveDir.Magnitude > 0 then
                 moveDir = moveDir.Unit
-                humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.5)
+                for j = 1, 3 do
+                    humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.3)
+                    task.wait(0.0005)
+                end
             end
+            
+            humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
         end
         
-        -- ผลักตัวไปข้างหน้า (ความเร็วปกติ 16 แต่ลดแรง)
+        -- ผลักตัว
         if isMoving and not flying then
             moveDir = moveDir.Unit
             
@@ -345,14 +404,13 @@ local function startNoclip()
             if not bodyVel then
                 bodyVel = Instance.new("BodyVelocity")
                 bodyVel.Name = "NoclipPush"
-                bodyVel.MaxForce = Vector3.new(50000, 50000, 50000)
-                bodyVel.P = 3000
+                bodyVel.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                bodyVel.P = 5000
+                bodyVel.D = 100
                 bodyVel.Parent = humanoidRootPart
             end
-            bodyVel.Velocity = moveDir * 16
-            
-            -- ลด nudge เพื่อให้นิ่มนวล
-            humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.05)
+            bodyVel.Velocity = moveDir * 30
+            humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.25)
         else
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
             if bodyVel then
@@ -361,6 +419,24 @@ local function startNoclip()
         end
         
         humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
+    end)
+    
+    -- Velocity Bypass
+    velocityBypassConnection = RunService.RenderStepped:Connect(function()
+        if not noclipping or not humanoidRootPart then return end
+        
+        humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
+        humanoidRootPart.CanCollide = false
+        
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+        
+        pcall(function()
+            humanoidRootPart:SetNetworkOwner(player)
+        end)
     end)
 end
 
@@ -373,6 +449,9 @@ local function stopNoclip()
     StatusLabel.Text = flying and "Status: Flying" or "Status: Ready"
     StatusLabel.TextColor3 = flying and Color3.fromRGB(100, 200, 255) or Color3.fromRGB(100, 255, 100)
     
+    WallStatusLabel.Text = "Wall: OFF"
+    WallStatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    
     if noclipConnection then
         noclipConnection:Disconnect()
         noclipConnection = nil
@@ -383,6 +462,17 @@ local function stopNoclip()
         antiPullbackConnection = nil
     end
     
+    if velocityBypassConnection then
+        velocityBypassConnection:Disconnect()
+        velocityBypassConnection = nil
+    end
+    
+    if wallDetectConnection then
+        wallDetectConnection:Disconnect()
+        wallDetectConnection = nil
+    end
+    
+    -- เปิด CanCollide กลับ
     for _, part in pairs(character:GetDescendants()) do
         if part:IsA("BasePart") and part:IsDescendantOf(character) then
             if part.Name == "Head" or part.Name == "Torso" or part.Name == "HumanoidRootPart" 
@@ -427,6 +517,8 @@ local function stopNoclip()
     if humanoid then
         humanoid.WalkSpeed = 16
     end
+    
+    print("Noclip OFF - กลับมาเดินปกติแล้ว")
 end
 
 -- Button Events
@@ -517,4 +609,8 @@ pcall(function()
     humanoidRootPart:SetNetworkOwner(player)
 end)
 
-print("Fly & Noclip System loaded!")
+print("✓ Fly & Noclip System ENHANCED loaded!")
+print("✓ Anti-Pullback: ACTIVE (โหดมาก)")
+print("✓ Wall Detection: ACTIVE")
+print("✓ Mobile Support: ACTIVE")
+print("✓ Status: READY")
