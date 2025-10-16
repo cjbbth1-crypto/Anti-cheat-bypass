@@ -281,6 +281,17 @@ local function startNoclip()
         humanoidRootPart:SetNetworkOwner(player)
     end)
     
+    -- ปิด CanCollide ทั้งหมดก่อน
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+    
+    -- เปลี่ยน Humanoid State
+    humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+    humanoid.PlatformStand = false
+    
     positionHistory = {}
     positionSnapshots = {}
     lastPosition = humanoidRootPart.Position
@@ -293,18 +304,17 @@ local function startNoclip()
         for _, part in pairs(character:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
-                pcall(function()
-                    part:SetNetworkOwner(player)
-                end)
             end
         end
         
         if humanoidRootPart then
             humanoidRootPart.CanCollide = false
             humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
-            pcall(function()
-                humanoidRootPart:SetNetworkOwner(player)
-            end)
+            
+            -- ป้องกัน Humanoid ลงพื้น
+            if humanoid and humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then
+                humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+            end
         end
     end)
     
