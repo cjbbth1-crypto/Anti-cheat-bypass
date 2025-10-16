@@ -1,8 +1,13 @@
+-- ============================================
+-- FLY & NOCLIP SYSTEM WITH ANTI-PULLBACK
+-- ============================================
+
 -- Services
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
+-- Player Setup
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
@@ -13,69 +18,130 @@ if not humanoidRootPart or not humanoid then
     return
 end
 
--- Variables
+print("System initializing...")
+
+-- ============================================
+-- VARIABLES & CONFIGURATION
+-- ============================================
+
 local flying = false
 local noclipping = false
 local speed = 50
-local control = {forward = 0, backward = 0, left = 0, right = 0, up = 0, down = 0}
-local flyConnection, noclipConnection, antiPullbackConnection
+local noclipSpeed = 20
+local walkSpeed = 16
+local jumpPower = 50
 
+-- Control States
+local control = {
+    forward = 0,
+    backward = 0,
+    left = 0,
+    right = 0,
+    up = 0,
+    down = 0
+}
+
+-- Connections
+local flyConnection
+local noclipConnection
+local antiPullbackConnection
+
+-- Position Tracking for Anti-Pullback
 local lastPosition = humanoidRootPart.Position
+local positionHistory = {}
+local maxHistorySize = 50
 local pullbackThreshold = 0.8
 local stuckCounter = 0
 local lastSafePosition = humanoidRootPart.CFrame
+local pullbackDetectFrame = 0
 
--- GUI
+-- ============================================
+-- GUI SETUP
+-- ============================================
+
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FlyGUI"
+ScreenGui.Name = "FlyNoclipGUI"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = player:WaitForChild("PlayerGui")
 
+print("GUI created")
+
+-- Main Control Panel
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 150, 0, 100)
-Frame.Position = UDim2.new(1, -160, 0, 10)
+Frame.Name = "MainFrame"
+Frame.Size = UDim2.new(0, 160, 0, 140)
+Frame.Position = UDim2.new(1, -170, 0, 10)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 Frame.BorderSizePixel = 0
 Frame.Active = true
 Frame.Draggable = true
 Frame.Parent = ScreenGui
 
+-- Title Label
 local Title = Instance.new("TextLabel")
+Title.Name = "Title"
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundTransparency = 1
 Title.Text = "Fly & Noclip"
 Title.TextColor3 = Color3.fromRGB(200, 200, 200)
 Title.TextSize = 12
 Title.Font = Enum.Font.GothamBold
+Title.TextWrapped = true
 Title.Parent = Frame
 
+-- Fly Button
 local FlyButton = Instance.new("TextButton")
-FlyButton.Size = UDim2.new(0.9, 0, 0, 25)
-FlyButton.Position = UDim2.new(0.05, 0, 0.3, 0)
+FlyButton.Name = "FlyButton"
+FlyButton.Size = UDim2.new(0.9, 0, 0, 28)
+FlyButton.Position = UDim2.new(0.05, 0, 0.25, 0)
 FlyButton.BackgroundColor3 = Color3.fromRGB(50, 100, 255)
 FlyButton.Text = "Fly: OFF"
 FlyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-FlyButton.TextSize = 10
+FlyButton.TextSize = 11
 FlyButton.Font = Enum.Font.GothamBold
 FlyButton.Parent = Frame
 
+-- Noclip Button
 local NoclipButton = Instance.new("TextButton")
-NoclipButton.Size = UDim2.new(0.9, 0, 0, 25)
-NoclipButton.Position = UDim2.new(0.05, 0, 0.62, 0)
+NoclipButton.Name = "NoclipButton"
+NoclipButton.Size = UDim2.new(0.9, 0, 0, 28)
+NoclipButton.Position = UDim2.new(0.05, 0, 0.5, 0)
 NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 255)
 NoclipButton.Text = "Noclip: OFF"
 NoclipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-NoclipButton.TextSize = 10
+NoclipButton.TextSize = 11
 NoclipButton.Font = Enum.Font.GothamBold
 NoclipButton.Parent = Frame
 
+-- Status Label
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Size = UDim2.new(0.9, 0, 0, 20)
+StatusLabel.Position = UDim2.new(0.05, 0, 0.78, 0)
+StatusLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+StatusLabel.Text = "Status: Ready"
+StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+StatusLabel.TextSize = 9
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.Parent = Frame
+
+-- UI Corners
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 6)
 corner.Parent = Frame
-corner:Clone().Parent = FlyButton
-corner:Clone().Parent = NoclipButton
 
--- Functions
+for _, btn in pairs({FlyButton, NoclipButton, StatusLabel}) do
+    corner:Clone().Parent = btn
+end
+
+print("GUI elements created")
+
+-- ============================================
+-- CORE FUNCTIONS
+-- ============================================
+
+-- Detect Pullback/Teleport Detection
 local function detectPullback()
     if not humanoidRootPart then return false end
     
@@ -84,10 +150,12 @@ local function detectPullback()
     local moveDir = humanoid.MoveDirection
     local isMoving = moveDir.Magnitude > 0.1
     
+    -- Detect rapid position change
     if distance > pullbackThreshold and isMoving then
         return true
     end
     
+    -- Detect stuck state (moving but not progressing)
     if isMoving and distance < 0.01 then
         stuckCounter = stuckCounter + 1
         if stuckCounter > 1 then
@@ -97,18 +165,58 @@ local function detectPullback()
         stuckCounter = 0
     end
     
+    -- Detect unauthorized teleport
+    if distance > 3 and not isMoving then
+        return true
+    end
+    
     lastPosition = currentPos
     return false
 end
 
+-- Check if In Wall
+local function isInWall()
+    if not humanoidRootPart then return false end
+    
+    local region = Region3.new(
+        humanoidRootPart.Position - Vector3.new(4, 4, 4),
+        humanoidRootPart.Position + Vector3.new(4, 4, 4)
+    )
+    region = region:ExpandToGrid(4)
+    
+    local parts = workspace:FindPartsInRegion3(region, character, 100)
+    for _, part in pairs(parts) do
+        if part.CanCollide and not part:IsDescendantOf(character) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Reset Humanoid State
 local function resetHumanoidState()
     if not humanoid or not humanoidRootPart then return end
+    
     humanoid.PlatformStand = false
     humanoid.Sit = false
+    humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+    task.wait(0.05)
+    humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+    task.wait(0.05)
     humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    
     humanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+    humanoidRootPart.RotVelocity = Vector3.new(0, 0, 0)
+    humanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    humanoidRootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    
     task.wait(0.1)
+    humanoid.PlatformStand = false
 end
+
+-- ============================================
+-- FLY FUNCTIONS
+-- ============================================
 
 local function startFly()
     if flying or not humanoidRootPart or humanoid.Health <= 0 then return end
@@ -116,18 +224,23 @@ local function startFly()
     FlyButton.Text = "Fly: ON"
     FlyButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
     
+    StatusLabel.Text = noclipping and "Status: Fly + Noclip" or "Status: Flying"
+    StatusLabel.TextColor3 = noclipping and Color3.fromRGB(255, 255, 100) or Color3.fromRGB(100, 200, 255)
+    
     local bodyGyro = Instance.new("BodyGyro")
     bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
     bodyGyro.P = 3000
+    bodyGyro.D = 500
     bodyGyro.Parent = humanoidRootPart
     
     local bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
     bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
     bodyVelocity.P = 1250
     bodyVelocity.Parent = humanoidRootPart
 
-    flyConnection = RunService.Heartbeat:Connect(function()
-        if not flying or not humanoidRootPart then
+    flyConnection = RunService.Heartbeat:Connect(function(deltaTime)
+        if not flying or not humanoidRootPart or humanoid.Health <= 0 then
             if flying then stopFly() end
             return
         end
@@ -138,23 +251,28 @@ local function startFly()
         bodyGyro.CFrame = camera.CFrame
 
         local moveVector = Vector3.new(
-            control.right - control.left,
-            control.up - control.down,
-            control.forward - control.backward
+            (control.right - control.left),
+            (control.up - control.down),
+            (control.forward - control.backward)
         )
 
         if moveVector.Magnitude > 0 then
             moveVector = moveVector.Unit
+            
             local lookDirection = camera.CFrame.LookVector
             local rightDirection = camera.CFrame.RightVector
             local upDirection = Vector3.new(0, 1, 0)
             
             local direction = (lookDirection * moveVector.Z + rightDirection * moveVector.X + upDirection * moveVector.Y).Unit
-            bodyVelocity.Velocity = direction * speed
+            
+            local targetVelocity = direction * speed
+            bodyVelocity.Velocity = targetVelocity
         else
             bodyVelocity.Velocity = Vector3.new(0, 0, 0)
         end
     end)
+    
+    print("Fly started")
 end
 
 local function stopFly()
@@ -162,6 +280,9 @@ local function stopFly()
     flying = false
     FlyButton.Text = "Fly: OFF"
     FlyButton.BackgroundColor3 = Color3.fromRGB(50, 100, 255)
+    
+    StatusLabel.Text = noclipping and "Status: Noclip" or "Status: Ready"
+    StatusLabel.TextColor3 = noclipping and Color3.fromRGB(255, 150, 255) or Color3.fromRGB(100, 255, 100)
     
     if humanoidRootPart then
         for _, child in pairs(humanoidRootPart:GetChildren()) do
@@ -177,7 +298,13 @@ local function stopFly()
         flyConnection:Disconnect()
         flyConnection = nil
     end
+    
+    print("Fly stopped")
 end
+
+-- ============================================
+-- NOCLIP FUNCTIONS
+-- ============================================
 
 local function startNoclip()
     if noclipping then return end
@@ -185,23 +312,33 @@ local function startNoclip()
     NoclipButton.Text = "Noclip: ON"
     NoclipButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
     
+    StatusLabel.Text = flying and "Status: Fly + Noclip" or "Status: Noclip"
+    StatusLabel.TextColor3 = flying and Color3.fromRGB(255, 255, 100) or Color3.fromRGB(255, 150, 255)
+    
     pcall(function()
         humanoidRootPart:SetNetworkOwner(player)
     end)
     
+    positionHistory = {}
     lastPosition = humanoidRootPart.Position
     
+    -- Disable Collision Loop
     noclipConnection = RunService.Stepped:Connect(function()
-        if not noclipping or not humanoidRootPart then return end
+        if not noclipping or not character or not humanoidRootPart then return end
         
         for _, part in pairs(character:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
             end
         end
+        
+        if humanoidRootPart then
+            humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
+        end
     end)
     
-    antiPullbackConnection = RunService.Heartbeat:Connect(function()
+    -- Anti-Pullback Loop
+    antiPullbackConnection = RunService.Heartbeat:Connect(function(deltaTime)
         if not noclipping or not humanoidRootPart then return end
         
         local moveDir = humanoid.MoveDirection
@@ -209,12 +346,22 @@ local function startNoclip()
         
         if isMoving then
             lastSafePosition = humanoidRootPart.CFrame
+            table.insert(positionHistory, humanoidRootPart.CFrame)
+            if #positionHistory > maxHistorySize then
+                table.remove(positionHistory, 1)
+            end
         end
         
+        -- Aggressive Anti-Pullback
         if detectPullback() then
-            humanoidRootPart.CFrame = lastSafePosition
+            if isMoving then
+                humanoidRootPart.CFrame = lastSafePosition
+            end
+            
             humanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+            humanoidRootPart.RotVelocity = Vector3.new(0, 0, 0)
             humanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            humanoidRootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
             
             for _ = 1, 5 do
                 pcall(function()
@@ -228,17 +375,20 @@ local function startNoclip()
             end
         end
         
+        -- Movement Push
         if isMoving and not flying then
             moveDir = moveDir.Unit
+            
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
             if not bodyVel then
                 bodyVel = Instance.new("BodyVelocity")
                 bodyVel.Name = "NoclipPush"
                 bodyVel.MaxForce = Vector3.new(100000, 100000, 100000)
                 bodyVel.P = 5000
+                bodyVel.D = 500
                 bodyVel.Parent = humanoidRootPart
             end
-            bodyVel.Velocity = moveDir * 20
+            bodyVel.Velocity = moveDir * noclipSpeed
             humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDir * 0.1)
         else
             local bodyVel = humanoidRootPart:FindFirstChild("NoclipPush")
@@ -246,7 +396,11 @@ local function startNoclip()
                 bodyVel:Destroy()
             end
         end
+        
+        humanoidRootPart.AssemblyLinearVelocity = humanoidRootPart.Velocity
     end)
+    
+    print("Noclip started")
 end
 
 local function stopNoclip()
@@ -255,19 +409,25 @@ local function stopNoclip()
     NoclipButton.Text = "Noclip: OFF"
     NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 255)
     
+    StatusLabel.Text = flying and "Status: Flying" or "Status: Ready"
+    StatusLabel.TextColor3 = flying and Color3.fromRGB(100, 200, 255) or Color3.fromRGB(100, 255, 100)
+    
     if noclipConnection then
         noclipConnection:Disconnect()
         noclipConnection = nil
     end
+    
     if antiPullbackConnection then
         antiPullbackConnection:Disconnect()
         antiPullbackConnection = nil
     end
     
+    -- Re-enable Collision
     for _, part in pairs(character:GetDescendants()) do
         if part:IsA("BasePart") and part:IsDescendantOf(character) then
             if part.Name == "Head" or part.Name == "Torso" or part.Name == "HumanoidRootPart" 
-                or part.Name:match("Arm") or part.Name:match("Leg") then
+                or part.Name:match("Arm") or part.Name:match("Leg") 
+                or part.Parent.Name == "UpperTorso" or part.Parent.Name == "LowerTorso" then
                 part.CanCollide = true
             end
         end
@@ -283,61 +443,99 @@ local function stopNoclip()
     if not flying then
         resetHumanoidState()
         
-        -- รีเซ็ตความเร็วกลับปกติ
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
+        -- Reset to Normal Walk Speed
+        humanoid.WalkSpeed = walkSpeed
+        humanoid.JumpPower = jumpPower
         
-        -- ผลักตัวออกมาจากกำแพง
+        -- Push out from wall
         task.wait(0.2)
         if humanoidRootPart then
             local camera = workspace.CurrentCamera
-            local nudgeDirection = (camera.CFrame.LookVector + Vector3.new(0, 1, 0)).Unit * 2
-            humanoidRootPart.CFrame = humanoidRootPart.CFrame + nudgeDirection
+            if camera then
+                local nudgeDirection = (camera.CFrame.LookVector + Vector3.new(0, 1, 0)).Unit * 2
+                humanoidRootPart.CFrame = humanoidRootPart.CFrame + nudgeDirection
+            end
         end
     end
+    
+    print("Noclip stopped")
 end
 
--- Button Events
+-- ============================================
+-- BUTTON EVENTS
+-- ============================================
+
 FlyButton.MouseButton1Click:Connect(function()
-    if flying then stopFly() else startFly() end
+    if flying then 
+        stopFly() 
+    else 
+        startFly() 
+    end
 end)
 
 NoclipButton.MouseButton1Click:Connect(function()
-    if noclipping then stopNoclip() else startNoclip() end
+    if noclipping then 
+        stopNoclip() 
+    else 
+        startNoclip() 
+    end
 end)
 
--- Keyboard Controls
+-- ============================================
+-- KEYBOARD CONTROLS
+-- ============================================
+
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
+    
     local key = input.KeyCode
-    if key == Enum.KeyCode.W then control.forward = 1
-    elseif key == Enum.KeyCode.S then control.backward = 1
-    elseif key == Enum.KeyCode.A then control.left = 1
-    elseif key == Enum.KeyCode.D then control.right = 1
-    elseif key == Enum.KeyCode.E then control.up = 1
-    elseif key == Enum.KeyCode.Q then control.down = 1
-    elseif key == Enum.KeyCode.Space then control.up = 1
+    if key == Enum.KeyCode.W then 
+        control.forward = 1
+    elseif key == Enum.KeyCode.S then 
+        control.backward = 1
+    elseif key == Enum.KeyCode.A then 
+        control.left = 1
+    elseif key == Enum.KeyCode.D then 
+        control.right = 1
+    elseif key == Enum.KeyCode.E then 
+        control.up = 1
+    elseif key == Enum.KeyCode.Q then 
+        control.down = 1
+    elseif key == Enum.KeyCode.Space then 
+        control.up = 1
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input, processed)
     if processed then return end
+    
     local key = input.KeyCode
-    if key == Enum.KeyCode.W then control.forward = 0
-    elseif key == Enum.KeyCode.S then control.backward = 0
-    elseif key == Enum.KeyCode.A then control.left = 0
-    elseif key == Enum.KeyCode.D then control.right = 0
-    elseif key == Enum.KeyCode.E then control.up = 0
-    elseif key == Enum.KeyCode.Q then control.down = 0
-    elseif key == Enum.KeyCode.Space then control.up = 0
+    if key == Enum.KeyCode.W then 
+        control.forward = 0
+    elseif key == Enum.KeyCode.S then 
+        control.backward = 0
+    elseif key == Enum.KeyCode.A then 
+        control.left = 0
+    elseif key == Enum.KeyCode.D then 
+        control.right = 0
+    elseif key == Enum.KeyCode.E then 
+        control.up = 0
+    elseif key == Enum.KeyCode.Q then 
+        control.down = 0
+    elseif key == Enum.KeyCode.Space then 
+        control.up = 0
     end
 end)
 
--- Respawn
+-- ============================================
+-- RESPAWN HANDLING
+-- ============================================
+
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
-    humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-    humanoid = character:WaitForChild("Humanoid")
+    humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
+    humanoid = character:WaitForChild("Humanoid", 5)
+    positionHistory = {}
     lastPosition = humanoidRootPart.Position
     
     local wasFlying = flying
@@ -345,10 +543,27 @@ player.CharacterAdded:Connect(function(newChar)
     
     if wasFlying or wasNoclipping then
         task.wait(0.5)
-        if wasNoclipping then startNoclip() end
-        if wasFlying then startFly() end
+        if wasNoclipping then 
+            startNoclip() 
+        end
+        if wasFlying then 
+            startFly() 
+        end
     end
+    
+    print("Character respawned")
 end)
 
-humanoid.WalkSpeed = 16
-print("Fly & Noclip loaded!")
+-- ============================================
+-- INITIALIZATION
+-- ============================================
+
+humanoid.WalkSpeed = walkSpeed
+humanoid.JumpPower = jumpPower
+
+pcall(function()
+    humanoidRootPart:SetNetworkOwner(player)
+end)
+
+print("=== Fly & Noclip System Loaded Successfully ===")
+print("Controls: WASD (Move) | E/Q (Up/Down) | Space (Jump)")
